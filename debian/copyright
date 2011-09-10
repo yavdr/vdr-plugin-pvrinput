@@ -1,0 +1,43 @@
+Upstream Homepages:
+    http://drseltsam.device.name/vdr/pvr/src/pvrinput
+    http://www.powarman.de/files/pvrinput (old, unmaintained versions)
+
+Upstream Authors:
+    Winfried Koehler <handygewinnspiel AT gmx d0t de> ("Wirbel")
+    Martin Dauskardt <directorskinner@arcor.de> ("Dr. Seltsam")
+    Andreas Schäfers <andreas_schaefers@gmx.de>
+    Andreas Regel <andreas.regel@powarman.de> (Original Author)
+
+Debian Maintainers:
+    Tobias Grimm <tg@e-tobi.net>
+    Thomas Günther <tom@toms-cafe.de>
+    Thomas Schmidt <tschmidt@debian.org>
+
+Copyright:
+    (C) 2006 - 2008 Martin Dauskart, Winfried Koehler, Andreas Schäfers
+    (C) 2005 - 2006 Andreas Regel
+
+Copyright (Debian packaging):
+    (C) 2005 - 2008  Tobias Grimm, Thomas Günther, Thomas Schmidt
+
+License:
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+    The complete text of the GNU General Public License can be found
+    in /usr/share/common-licenses/GPL-2 on most Debian systems.
+
+License (Debian packaging):
+    The Debian packaging is licensed under the GPL, version 2 or any
+    later version, see /usr/share/common-licenses/GPL-2.
