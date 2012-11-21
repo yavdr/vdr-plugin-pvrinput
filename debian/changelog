@@ -1,3 +1,9 @@
+vdr-plugin-pvrinput (2012-04-25+git20120425-0yavdr0~precise) precise; urgency=medium
+
+  * rebuild
+
+ -- Lars Hanisch <dvb@flensrocker.de>  Wed, 21 Nov 2012 20:59:13 +0100
+
 vdr-plugin-pvrinput (2011-02-12+git20110424-3yavdr10~lucid) lucid; urgency=medium
 
   * rebuild
