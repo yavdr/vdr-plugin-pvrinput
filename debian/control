@@ -14,3 +14,13 @@ Depends: ${shlibs:Depends}, ${vdr:Depends}
 Description: VDR plugin allowing to use a Hauppauge PVR card as input device
  This plugin uses a Hauppauge PVR card as an input device. All cards
  supported by the ivtv driver should work.
+
+Package: vdr-plugin-pvrinput-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: vdr-plugin-pvrinput (= ${binary:Version}), ${misc:Depends}
+Description: debugging symbols for vdr-plugin-pvrinput
+ .
+ This package contains only the debugging symbols for vdr-plugin-pvrinput
+
