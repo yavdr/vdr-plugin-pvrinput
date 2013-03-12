@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Tobias Grimm <etobi@debian.org>
 Origin: ctvdr
 Bugs: mailto:pkg-vdr-dvb-devel@lists.alioth.debian.org
-Build-Depends: debhelper (>= 7), cdbs, vdr-dev (>= 1.6.0-5), gettext, linux-libc-dev (>= 2.6.21-4~bpo.1)
+Build-Depends: debhelper (>= 8), vdr-dev (>= 1.6.0-5), pkg-config, gettext, linux-libc-dev (>= 2.6.21-4~bpo.1)
 Standards-Version: 3.8.3
 Homepage: http://drseltsam.device.name/vdr/pvr/src/pvrinput
 

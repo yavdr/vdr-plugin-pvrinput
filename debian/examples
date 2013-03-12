@@ -1,5 +1,5 @@
-example/channels.conf*
 example/channel-conv.sh
 example/channel-conv2.sh
 example/externchannelswitch.sh.example
 example/README.channel-conv
+example/channels.conf_vdr-1.7.13-syntax.example
