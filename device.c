@@ -1,4 +1,5 @@
 #include "common.h"
+#include "udev.h"
 #include <linux/dvb/video.h>
 
 char DRIVERNAME[][15] = {
@@ -42,7 +43,7 @@ cPvrDevice::cPvrDevice(int DeviceNumber, cDevice *ParentDevice)
 {
   log(pvrDEBUG2, "new cPvrDevice (%d)", number);
   v4l2_fd = mpeg_fd = radio_fd = -1;
-  v4l2_dev = mpeg_dev = radio_dev = -1;
+  v4l2_dev = mpeg_dev = -1;
   vpid = apid = tpid = -1;
   cString devName;
   struct v4l2_capability video_vcap;
@@ -90,44 +91,59 @@ cPvrDevice::cPvrDevice(int DeviceNumber, cDevice *ParentDevice)
     VBIDeviceCount++;
     log(pvrDEBUG1, "%s supports sliced VBI Capture, total number of VBI capable devices is now %d", *devName, VBIDeviceCount);
     }
+  bool supports_radio = false;
+  if (video_vcap.capabilities & V4L2_CAP_RADIO)
+     supports_radio = true;
+
+  pvrinput::cUdev::Init();
+  pvrinput::cUdevDevice *v4ldev = pvrinput::cUdev::GetDeviceFromDevName(*devName);
+  if (v4ldev != NULL) {
+     static const char *propertyName = "ID_PATH";
+     static const char *vbi_dev_node = "/dev/vbi";
+     static const char *radio_dev_node = "/dev/radio";
+     const char *id_path = v4ldev->GetPropertyValue(propertyName);
+     if (id_path != NULL) {
+        cList<pvrinput::cUdevDevice> *v4ldevices = pvrinput::cUdev::EnumDevices("video4linux", propertyName, id_path);
+        for (pvrinput::cUdevDevice *dev = v4ldevices->First(); dev; dev = v4ldevices->Next(dev)) {
+            log(pvrDEBUG1, "pvrinput: %s is related to %s", *devName, dev->GetDevnode());
+            if (SupportsSlicedVBI && (*vbi_devname == NULL) && (strncmp(dev->GetDevnode(), vbi_dev_node, strlen(vbi_dev_node)) == 0))
+               vbi_devname = dev->GetDevnode();
+            else if (supports_radio && (*radio_devname == NULL) && (strncmp(dev->GetDevnode(), radio_dev_node, strlen(radio_dev_node)) == 0))
+               radio_devname = dev->GetDevnode();
+            }
+        delete v4ldevices;
+        }
+     delete v4ldev;
+     }
+  pvrinput::cUdev::Free();
+
   if (video_vcap.capabilities & V4L2_CAP_VIDEO_OUTPUT_OVERLAY)
      hasDecoder = true; //can only be a PVR350
-  for (i = 0; i < kMaxPvrDevices; i++) {
-    if (radio_dev<0 && (video_vcap.capabilities & V4L2_CAP_RADIO)) { //searching matching radio dev
-      devName = cString::sprintf("/dev/radio%d", i);
-      radio_fd = open(devName, O_RDWR);
-      if (radio_fd >= 0) {
-        memset(&capability, 0, sizeof(capability));
-        if (IOCTL(radio_fd, VIDIOC_QUERYCAP, &capability) != 0)
-           log(pvrERROR, "VIDIOC_QUERYCAP failed, %d:%s", errno, strerror(errno));
-        if (!strncmp(*BusID, (const char*)capability.bus_info, strlen(*BusID) - 1)) {
-          radio_dev = i; // store info for later
-          log(pvrDEBUG1, "/dev/radio%d = FM radio dev",radio_dev);
-          }
-        close(radio_fd); // a pvrusb2 will remain on input 3. The bool FirstChannelSwitch will solve this later
-        radio_fd = -1;
-      }
+
+  if (driver == cx88_blackbird) {
+     for (i = 0; i < kMaxPvrDevices; i++) {
+       if (mpeg_dev < 0) { // the blackbird uses two (!) different devices, search the other one.
+         close(v4l2_fd);
+         v4l2_fd = -1;
+         devName = cString::sprintf("/dev/video%d", i);
+         mpeg_fd = open(devName, O_RDWR);
+         if (mpeg_fd > 0) {
+           memset(&capability, 0, sizeof(capability));
+           IOCTL(mpeg_fd, VIDIOC_QUERYCAP, &capability);
+           if (!strncmp(*BusID, (const char*)capability.bus_info, strlen(*BusID) - 1)
+              && !strcmp("cx8800", (const char*)capability.driver)) {
+             mpeg_dev = v4l2_dev; //for this driver we found mpeg_dev up to now.
+             v4l2_dev = i;        //reassigning, now with correct value.
+             log(pvrDEBUG1, "/dev/video%d = v4l2 dev (analog properties: volume/hue/brightness/inputs..)", v4l2_dev);
+             log(pvrDEBUG1, "/dev/video%d = mpeg dev (MPEG properties: bitrates/frame rate/filters..)", mpeg_dev);
+             }
+           close(mpeg_fd);
+           mpeg_fd = -1;
+           }
+         }
+       } // end device search loop
     }
-    if (mpeg_dev < 0 && (driver == cx88_blackbird)) { // the blackbird uses two (!) different devices, search the other one.
-      close(v4l2_fd);
-      v4l2_fd = -1;
-      devName = cString::sprintf("/dev/video%d", i);
-      mpeg_fd = open(devName, O_RDWR);
-      if (mpeg_fd) {
-        memset(&capability, 0, sizeof(capability));
-        IOCTL(mpeg_fd, VIDIOC_QUERYCAP, &capability);
-        if (!strncmp(*BusID, (const char*)capability.bus_info, strlen(*BusID) - 1)
-           && !strcmp("cx8800", (const char*)capability.driver)) {
-          mpeg_dev = v4l2_dev; //for this driver we found mpeg_dev up to now.
-          v4l2_dev = i;        //reassigning, now with correct value.
-          log(pvrDEBUG1, "/dev/video%d = v4l2 dev (analog properties: volume/hue/brightness/inputs..)", v4l2_dev);
-          log(pvrDEBUG1, "/dev/video%d = mpeg dev (MPEG properties: bitrates/frame rate/filters..)", mpeg_dev);
-          }
-        close(mpeg_fd);
-        mpeg_fd = -1;
-        }
-      }
-    } // end device search loop
+
   switch (driver) {
     case ivtv:        //ivtv, cx18, pvrusb2 and hdpvr share the same device.
     case cx18:
@@ -662,37 +678,48 @@ void cPvrDevice::SetEncoderState(eEncState state)
 
 bool cPvrDevice::SetVBImode(int vbiLinesPerFrame, int vbistatus)
 {
-  if (v4l2_fd >= 0 && SupportsSlicedVBI) {
-    log(pvrDEBUG1, "SetVBImode(%d, %d) on /dev/video%d (%s)", vbiLinesPerFrame, vbistatus, number, CARDNAME[cardname]);
-    struct v4l2_format vbifmt;
-    struct v4l2_ext_controls ctrls;
-    struct v4l2_ext_control  ctrl;
-    memset(&vbifmt, 0, sizeof(vbifmt));
-    memset(&ctrls,  0, sizeof(ctrls));
-    memset(&ctrl,   0, sizeof(ctrl));
-    ctrl.id    = V4L2_CID_MPEG_STREAM_VBI_FMT;
-    ctrl.value = vbistatus; 
-    ctrls.ctrl_class = V4L2_CTRL_CLASS_MPEG;
-    ctrls.controls = &ctrl;
-    ctrls.count = 1;
-    if (IOCTL(v4l2_fd, VIDIOC_S_EXT_CTRLS, &ctrls) != 0) {
-      log(pvrERROR, "cPvrDevice::SetVBImode(): error setting vbi mode (ctrls) on /dev/video%d (%s), %d:%s",
-          number, CARDNAME[cardname], errno, strerror(errno));
-      return false; 
-      }
-    if ((ctrl.value == V4L2_MPEG_STREAM_VBI_FMT_IVTV) && (vbiLinesPerFrame == 625)) {
+  if (*vbi_devname && SupportsSlicedVBI) {
+     log(pvrDEBUG1, "SetVBImode(%d, %d) on %s (%s)", vbiLinesPerFrame, vbistatus, *vbi_devname, CARDNAME[cardname]);
+
+     int vbi_fd = open(*vbi_devname, O_RDWR);
+     if (vbi_fd < 0) {
+        log(pvrERROR, "cPvrDevice::SetVBImode(): error opening %s (%s), %d:%s",
+            *vbi_devname, CARDNAME[cardname], errno, strerror(errno));
+        return false;
+        }
+
+     struct v4l2_format vbifmt;
+     struct v4l2_ext_controls ctrls;
+     struct v4l2_ext_control  ctrl;
+     memset(&vbifmt, 0, sizeof(vbifmt));
+     memset(&ctrls,  0, sizeof(ctrls));
+     memset(&ctrl,   0, sizeof(ctrl));
+     ctrl.id    = V4L2_CID_MPEG_STREAM_VBI_FMT;
+     ctrl.value = vbistatus; 
+     ctrls.ctrl_class = V4L2_CTRL_CLASS_MPEG;
+     ctrls.controls = &ctrl;
+     ctrls.count = 1;
+     if (IOCTL(vbi_fd, VIDIOC_S_EXT_CTRLS, &ctrls) != 0) {
+        log(pvrERROR, "cPvrDevice::SetVBImode(): error setting vbi mode (ctrls) on %s (%s), %d:%s",
+            *vbi_devname, CARDNAME[cardname], errno, strerror(errno));
+        close(vbi_fd);
+        return false; 
+        }
+     if ((ctrl.value == V4L2_MPEG_STREAM_VBI_FMT_IVTV) && (vbiLinesPerFrame == 625)) {
         vbifmt.fmt.sliced.service_set = V4L2_SLICED_VBI_625;
         vbifmt.type = V4L2_BUF_TYPE_SLICED_VBI_CAPTURE;
         vbifmt.fmt.sliced.reserved[0] = 0;
         vbifmt.fmt.sliced.reserved[1] = 0;
 
-        if (IOCTL(v4l2_fd, VIDIOC_S_FMT, &vbifmt) < 0) {
-          log(pvrERROR, "cPvrDevice::SetVBImode():error setting vbi mode (fmt) on /dev/video%d (%s), %d:%s",
-              number, CARDNAME[cardname], errno, strerror(errno));
-          return false;
-          }
+        if (IOCTL(vbi_fd, VIDIOC_S_FMT, &vbifmt) < 0) {
+           log(pvrERROR, "cPvrDevice::SetVBImode():error setting vbi mode (fmt) on %s (%s), %d:%s",
+               *vbi_devname, CARDNAME[cardname], errno, strerror(errno));
+           close(vbi_fd);
+           return false;
+           }
         }
-    }
+     close(vbi_fd);
+     }
   return true;
 }
 
@@ -749,7 +776,7 @@ bool cPvrDevice::SetChannelDevice(const cChannel * Channel, bool LiveView)
   if (!ParseChannel(Channel, &input, &norm, &LinesPerFrame, &card, &inputType, &apid, &vpid, &tpid))
      return false;
 
-  if ((Channel->Number() == CurrentChannel.Number()) && (Channel->Frequency() == CurrentFrequency) && (input == CurrentInput) && (norm == CurrentNorm))
+  if ((Channel->GetChannelID() == CurrentChannel.GetChannelID()) && (Channel->Frequency() == CurrentFrequency) && (input == CurrentInput) && (norm == CurrentNorm))
     return true;
   log(pvrDEBUG1, "cPvrDevice::SetChannelDevice prepare switch to %d (%s) %3.2fMHz (/dev/video%d = %s)",
     Channel->Number(), Channel->Name(), (double)Channel->Frequency() / 1000,  number, CARDNAME[cardname]);
@@ -854,13 +881,12 @@ bool cPvrDevice::OpenDvr(void)
                  case ivtv:
                  case cx18:
                  case pvrusb2:
-                   if (radio_dev < 0)
+                   if (*radio_devname == NULL)
                       return false; //no hardware support.
                    if (radio_fd < 0) {
-                     cString devName = cString::sprintf("/dev/radio%d", radio_dev);
-                     radio_fd = open(devName, O_RDONLY);
+                     radio_fd = open(*radio_devname, O_RDONLY);
                      if (radio_fd < 0) {
-                       log(pvrERROR, "Error opening FM radio device %s: %s", *devName, strerror(errno));
+                       log(pvrERROR, "Error opening FM radio device %s: %s", *radio_devname, strerror(errno));
                        return false;
                        }
                      if (driver == pvrusb2)
@@ -1021,6 +1047,21 @@ int cPvrDevice::SignalQuality(void) const
   return -1;
 }
 
+const cChannel *cPvrDevice::GetCurrentlyTunedTransponder(void) const
+{
+  return &CurrentChannel;
+}
+
+bool cPvrDevice::IsTunedToTransponder(const cChannel *Channel) const
+{
+  return CurrentChannel.GetChannelID() == Channel->GetChannelID();
+}
+
+bool cPvrDevice::MaySwitchTransponder(const cChannel *Channel) const
+{
+  return CurrentChannel.GetChannelID() == Channel->GetChannelID();
+}
+
 bool cPvrDevice::ProvidesChannel(const cChannel *Channel, int Priority, bool *NeedsDetachReceivers) const
 {
   bool result = false;
@@ -1071,7 +1112,7 @@ bool cPvrDevice::ProvidesChannel(const cChannel *Channel, int Priority, bool *Ne
            }
     }
   if (inputType == eRadio) {
-    if (radio_dev < 0) {
+    if (*radio_devname == NULL) {
       log(pvrDEBUG1, "cPvrDevice::ProvidesChannel: /dev/video%d (%s) has no radio", number, CARDNAME[cardname]);
       return false;
       }
