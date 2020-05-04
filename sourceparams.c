@@ -208,10 +208,10 @@ bool    cPvrSourceParam::ParseParameters(const char *Parameters, int *InputIndex
   char *InputArg  = NULL;
   char *OptArg[2] = { NULL, NULL };
 #ifdef PVR_SOURCEPARAMS
-  sscanf(Parameters, "%a[^|]|%a[^|]|%a[^:\n]", &InputArg, &OptArg[0], &OptArg[1]);
+  sscanf(Parameters, "%m[^|]|%m[^|]|%m[^:\n]", &InputArg, &OptArg[0], &OptArg[1]);
 #else
   char *PluginId  = NULL;
-  sscanf(Parameters, "%a[^|]|%a[^|]|%a[^|]|%a[^:\n]", &PluginId, &InputArg, &OptArg[0], &OptArg[1]);
+  sscanf(Parameters, "%m[^|]|%m[^|]|%m[^|]|%m[^:\n]", &PluginId, &InputArg, &OptArg[0], &OptArg[1]);
   if (strcasecmp(PluginId, "PVRINPUT"))
      return false;
 #endif
